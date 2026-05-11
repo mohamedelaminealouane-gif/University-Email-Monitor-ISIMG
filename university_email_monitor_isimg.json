@@ -1,0 +1,500 @@
+{
+  "updatedAt": "2026-04-09T18:51:53.598Z",
+  "createdAt": "2026-04-09T18:43:53.619Z",
+  "id": "aCULQjtSzulHR88q",
+  "name": "University Email Monitor — ISIMG",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "<__PLACEHOLDER_VALUE__from:*@isimg.tn (or your university domain)__>",
+          "readStatus": "unread"
+        },
+        "options": {
+          "dataPropertyAttachmentsPrefixName": "attachment_",
+          "downloadAttachments": true
+        }
+      },
+      "id": "4733d8e7-a56b-4fae-baa6-a7886f9d2f3a",
+      "name": "New Email Received",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1024,
+        256
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "8sI5cs1L16qFybHG",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.from }}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              },
+              "rightValue": "@isimg",
+              "id": "68228e87-ee0a-4df2-b233-364ca4c56432"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2af32bac-a90c-4bbb-a365-4924a5fef13e",
+      "name": "Is University Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -800,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ Object.keys($binary).filter(k => k.startsWith(\"attachment_\") && ($binary[k].mimeType?.includes(\"pdf\") || $binary[k].mimeType?.includes(\"word\") || $binary[k].mimeType?.includes(\"document\"))).length }}",
+                    "operator": {
+                      "type": "number",
+                      "operation": "gt"
+                    },
+                    "rightValue": 0,
+                    "id": "c1478533-17d0-488d-868c-8d192016501c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "hasDocument"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ Object.keys($binary).filter(k => k.startsWith(\"attachment_\")).length }}",
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    },
+                    "rightValue": 0,
+                    "id": "df0264b5-dc67-48c0-9596-757486cb233e"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "noAttachment"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8ed4d06d-cc5e-4424-9290-60eb3a526b97",
+      "name": "Check Attachments",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -576,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "={{ Object.keys($binary).find(k => k.startsWith(\"attachment_\") && ($binary[k].mimeType?.includes(\"pdf\") || $binary[k].mimeType?.includes(\"word\") || $binary[k].mimeType?.includes(\"document\"))) }}",
+        "options": {
+          "joinPages": true,
+          "maxPages": 3
+        }
+      },
+      "id": "4713e5b5-be50-40a5-a74d-492338bf758a",
+      "name": "Extract Document Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -288,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this document text and determine:\n1. Is it a course document (lecture notes, slides, exercises)?\n2. If yes, identify the subject/course name\n3. If no, classify what type of document it is\n\nDocument text (first pages):\n{{ $json.data }}\n\nEmail subject: {{ $(\"New Email Received\").item.json.subject }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a document classifier for a university email system. Analyze documents and extract the subject/course name accurately. Return structured output with documentType (course_material, administrative, exam, other), subject (course name if applicable), and confidence (high, medium, low)."
+        }
+      },
+      "id": "ce7a4877-c090-4d3f-8a18-993cb746ca82",
+      "name": "Classify Document",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": {
+          "documentType": "course_material",
+          "subject": "Database Systems",
+          "confidence": "high"
+        }
+      },
+      "id": "f08d4dc0-23a2-4657-b4aa-a724142c75f6",
+      "name": "Document Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        144,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "<__PLACEHOLDER_VALUE__Your Google Sheets document ID__>"
+        },
+        "sheetName": "={{ $json.output.subject }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $now.toFormat(\"yyyy-MM-dd HH:mm\") }}",
+            "subject": "={{ $json.output.subject }}",
+            "emailSubject": "={{ $(\"New Email Received\").item.json.subject }}",
+            "sender": "={{ $(\"New Email Received\").item.json.from }}",
+            "documentType": "={{ $json.output.documentType }}",
+            "preview": "={{ $(\"Extract Document Text\").item.json.data.substring(0, 200) }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "21c77f98-dc90-4eaf-a958-2fad925214b3",
+      "name": "Save Course Document",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        352,
+        112
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "5XPa5VXscWGKSxeK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this email and determine:\n1. What type of event is it? (session_cancelled, exam_date, schedule_change, announcement, other)\n2. What is the importance level? (high, medium, low)\n3. Provide a brief summary\n\nEmail subject: {{ $json.subject }}\nEmail body: {{ $json.text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an email classifier for a university system. Analyze emails without attachments and classify them as events. Determine the event type, importance level, and provide a concise summary. Return structured output with eventType, importance (high/medium/low), and summary."
+        }
+      },
+      "id": "e45f0c7a-68ba-4cbe-b942-718f694e0bbb",
+      "name": "Classify Event",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -352,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "id": "847c750a-9416-4f2d-adb3-45d662cb33c2",
+      "name": "OpenAI Model (Event)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -352,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": {
+          "eventType": "session_cancelled",
+          "importance": "high",
+          "summary": "Database Systems lecture on Jan 20 is cancelled"
+        }
+      },
+      "id": "8e7cb178-4ad2-4294-b02c-3affb62fe2e7",
+      "name": "Event Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -224,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "<__PLACEHOLDER_VALUE__Your Google Sheets document ID__>"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Events"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $now.toFormat(\"yyyy-MM-dd HH:mm\") }}",
+            "eventType": "={{ $json.output.eventType }}",
+            "importance": "={{ $json.output.importance }}",
+            "summary": "={{ $json.output.summary }}",
+            "emailSubject": "={{ $(\"New Email Received\").item.json.subject }}",
+            "sender": "={{ $(\"New Email Received\").item.json.from }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "d4acca08-52fd-4028-a362-3d65e845cbf7",
+      "name": "Save Event",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        64,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-2.0-flash-lite-001",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        240
+      ],
+      "id": "d7585679-05d0-4928-81b3-c308d2fb5978",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "MrGInArp43WAKaxj",
+          "name": "OpenRouter account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "New Email Received": {
+      "main": [
+        [
+          {
+            "node": "Is University Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is University Email?": {
+      "main": [
+        [
+          {
+            "node": "Check Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Attachments": {
+      "main": [
+        [
+          {
+            "node": "Extract Document Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Classify Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Document Text": {
+      "main": [
+        [
+          {
+            "node": "Classify Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Document": {
+      "main": [
+        [
+          {
+            "node": "Save Course Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Document Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Classify Document",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Event": {
+      "main": [
+        [
+          {
+            "node": "Save Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model (Event)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classify Event",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Classify Event",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "e9e476b1-5b13-4d79-8ae0-584c91bd4c22",
+  "activeVersionId": null,
+  "versionCounter": 11,
+  "triggerCount": 0,
+  "tags": [
+    {
+      "updatedAt": "2026-04-09T18:43:51.729Z",
+      "createdAt": "2026-04-09T18:43:51.729Z",
+      "id": "1BCR4OAFfnvcIMju",
+      "name": "university"
+    },
+    {
+      "updatedAt": "2026-04-09T18:43:51.739Z",
+      "createdAt": "2026-04-09T18:43:51.739Z",
+      "id": "uTxAqWDsbTeoOojS",
+      "name": "email-monitor"
+    }
+  ],
+  "shared": [
+    {
+      "updatedAt": "2026-04-09T18:43:53.625Z",
+      "createdAt": "2026-04-09T18:43:53.625Z",
+      "role": "workflow:owner",
+      "workflowId": "aCULQjtSzulHR88q",
+      "projectId": "IfOklyXnCUD65DXr",
+      "project": {
+        "updatedAt": "2026-04-23T20:55:59.064Z",
+        "createdAt": "2026-04-01T19:58:22.751Z",
+        "id": "IfOklyXnCUD65DXr",
+        "name": "Mohamedalamin Alouane <mohamedalaminalouane@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "73815250-7a94-4f39-8be8-a352886e2148"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": null,
+    "description": null
+  }
+}
